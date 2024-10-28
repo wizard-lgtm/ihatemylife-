@@ -5,9 +5,12 @@
 #include <bits/socket.h>
 #include <unistd.h>
 #include <string.h>
+#include <cmark.h>
+#include <dirent.h>
 
 #define PORT 4000
 #define QUEUE_SIZE 32
+#define NOTES_DIR = "./notes"
 
 // Function takes a body string and returns a raw HTTP 1.1 response buffer
 char* compile_response(const char* body) {
@@ -52,6 +55,62 @@ char* compile_response(const char* body) {
     free(header);
     return response;
 }
+
+// Reads whole file to a buffer
+char* read_file_to_buffer(const char* file_path) {
+    // Open the file in binary mode for reading
+    FILE *file = fopen(file_path, "rb");
+    if (file == NULL) {
+        perror("Error: Unable to open file");
+        return NULL; // Return NULL if the file doesn't exist or can't be opened
+    }
+
+    // Seek to the end of the file to determine its size
+    fseek(file, 0, SEEK_END);
+    long file_size = ftell(file);
+    rewind(file); // Go back to the beginning of the file
+
+    // Allocate buffer to hold the file content
+    char *buffer = malloc(file_size + 1); // +1 for null terminator
+    if (buffer == NULL) {
+        perror("Error: Memory allocation failed");
+        fclose(file);
+        return NULL;
+    }
+
+    // Read the file into the buffer
+    size_t bytes_read = fread(buffer, 1, file_size, file);
+    if (bytes_read != file_size) {
+        perror("Error: Failed to read the entire file");
+        free(buffer);
+        fclose(file);
+        return NULL;
+    }
+
+    buffer[file_size] = '\0'; // Null-terminate the buffer
+
+    fclose(file);
+    return buffer; // Return the buffer with the file content
+}
+
+
+char* render_home(){
+    char* str = "<h1>I hate my life</h1>";
+    char* buffer = malloc(strlen(str));
+    strcpy(buffer, str);
+    return buffer;
+}
+
+char *compose_strings(const char *str1, const char *str2) {
+    int size = snprintf(NULL, 0, "%s, %s!", str1, str2) + 1;   // Calculate required size
+    char *result = malloc(size);                               // Allocate memory
+
+    if (result != NULL) {
+        snprintf(result, size, "%s, %s!", str1, str2);         // Format the strings
+    }
+    return result;                                             // Return the result
+}
+
 
 
 int main(){
@@ -103,12 +162,15 @@ int main(){
         int bytes_read = recv(stream, request_buffer, buffer_size, 0);
         
         printf("%d bytes read\nRequest: %s\n", bytes_read, request_buffer);
+        
 
-        char* body = "<h1>I hate my life</h1><h2>But i hate c++ more</h2>"; 
+        // Render home
+     
+        char* body = render_home();
         char* response = compile_response(body);
-
-
         int bytes_written = write(stream, response, strlen(response));
+        printf("Response: %s\n", response);
+        free(response);
 
         if(bytes_written < 0){
             perror("ERR: write error\n");
@@ -123,13 +185,14 @@ int main(){
         
 
         // Cleanup 
-        free(response);
+        
         free(request_buffer);
         close(stream);
 
         printf("Connection closed\n");
 
     }
+
     close(socket_fd);
     return 0;
 }
