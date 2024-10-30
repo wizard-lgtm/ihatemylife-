@@ -7,6 +7,7 @@
 #include <string.h>
 #include <cmark.h>
 #include <dirent.h>
+#include "db.h"
 
 #define PORT 4000
 #define QUEUE_SIZE 32
@@ -114,6 +115,16 @@ char *compose_strings(const char *str1, const char *str2) {
 
 
 int main(){
+    // Connect to db 
+    db_connect();
+    Note *mynote = create_note("Test RISC-V", "# RISC-V");
+    db_create_note(mynote);
+    free(mynote);
+    
+    
+    
+
+
     int socket_fd;
     int opt = 1;
     socket_fd = socket(AF_INET, SOCK_STREAM, 0);
