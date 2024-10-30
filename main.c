@@ -117,12 +117,8 @@ char *compose_strings(const char *str1, const char *str2) {
 int main(){
     // Connect to db 
     db_connect();
-    Note *mynote = create_note("Test RISC-V", "# RISC-V");
-    db_create_note(mynote);
-    free(mynote);
-    
-    
-    
+    char* json = db_get_all_notes(0);
+    printf("all notes: %s\n", json);
 
 
     int socket_fd;
@@ -175,13 +171,14 @@ int main(){
         printf("%d bytes read\nRequest: %s\n", bytes_read, request_buffer);
         
 
-        // Render home
-     
+        // Render home    
+
         char* body = render_home();
         char* response = compile_response(body);
         int bytes_written = write(stream, response, strlen(response));
         printf("Response: %s\n", response);
         free(response);
+        free(json);
 
         if(bytes_written < 0){
             perror("ERR: write error\n");

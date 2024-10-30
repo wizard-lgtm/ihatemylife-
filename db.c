@@ -55,9 +55,83 @@ void db_connect() {
     bson_destroy(&reply);
 
 }
-void db_get_all_notes(){
-   
+#include <mongoc/mongoc.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+char* db_get_all_notes(int page) {
+    int page_size = 10;
+    int skip = page * page_size;
+
+    bson_t *query = bson_new();
+    bson_t *opts = bson_new();
+    mongoc_cursor_t *cursor;
+    const bson_t *doc;
+    int json_len = 2;  // "[]"
+    char *json = malloc(sizeof(char) * json_len);
+    strcpy(json, "[");  // Start JSON array
+    int first = 1;
+
+    bson_t projection;
+    bson_init(&projection);
+    // Get only id and title
+    BSON_APPEND_INT32(&projection, "_id", 1);
+    BSON_APPEND_INT32(&projection, "title", 1);
+    BSON_APPEND_DOCUMENT(opts, "projection", &projection);
+
+    BSON_APPEND_INT32(opts, "skip", skip);
+    BSON_APPEND_INT32(opts, "limit", page_size);
+
+    cursor = mongoc_collection_find_with_opts(collection, query, opts, NULL);
+    if (!cursor) {
+        fprintf(stderr, "Failed to initialize cursor\n");
+        bson_destroy(query);
+        bson_destroy(opts);
+        bson_destroy(&projection);
+        return NULL;
+    }
+
+    while (mongoc_cursor_next(cursor, &doc)) {
+        char *str = bson_as_json(doc, NULL);
+        int str_len = strlen(str);
+
+        // Adjust size 
+        json_len += str_len + (first ? 0 : 1);
+        json = realloc(json, json_len);
+
+        if (!first) {
+            strcat(json, ",");
+        }
+
+        strcat(json, str);
+        first = 0;
+
+        bson_free(str);
+    }
+
+    // Check for cursor errors
+    if (mongoc_cursor_error(cursor, NULL)) {
+        fprintf(stderr, "Cursor error\n");
+        bson_destroy(query);
+        bson_destroy(opts);
+        bson_destroy(&projection);
+        mongoc_cursor_destroy(cursor);
+        free(json);
+        return NULL;
+    }
+
+    strcat(json, "]");
+
+    // Cleanup
+    bson_destroy(query);
+    bson_destroy(opts);
+    bson_destroy(&projection);
+    mongoc_cursor_destroy(cursor);
+
+    return json;
 }
+
 void db_create_note(Note *note){
     bson_t *document;
     document = bson_new();
@@ -109,5 +183,28 @@ char* db_get_note_by_id_json(char* id){
         return str;
     }
 }
-void db_update_note(char* id, Note *new_note){}
-void db_delete_note(char* id){}
+void db_update_note(char* id, Note *new_note){
+    bson_t *selector;
+    bson_t *update;
+    selector = bson_new();
+    update = bson_new();
+
+    BSON_APPEND_UTF8(selector, "title", new_note->title);
+    BSON_APPEND_UTF8(selector, "content", new_note->content);
+
+    mongoc_collection_update_one(collection, selector, update, 0, 0, 0);
+    bson_destroy(selector);
+    bson_destroy(update);
+}
+void db_delete_note(char* id){
+    bson_oid_t oid;
+    bson_oid_init_from_string(&oid, id);
+
+    bson_t *selector;
+    selector = bson_new();
+    BSON_APPEND_OID(selector, "_id", &oid);
+
+    mongoc_collection_delete_one(collection, selector, 0, 0, 0);
+    printf("Object deleted successfully");
+    bson_destroy(selector);
+}

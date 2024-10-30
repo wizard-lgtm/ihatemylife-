@@ -4,9 +4,9 @@
 
 void db_connect();
 void db_cleanup();
-void db_get_all_notes();
+char* db_get_all_notes(int page);
 void db_create_note(Note *note);
-void db_get_note();
+char* db_get_note_by_id_json(char* );
 void db_update_note();
-void db_delete_note();
+void db_delete_note(char *id);
 #endif
