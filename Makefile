@@ -1,7 +1,7 @@
 TARGET = ihatemylife
 CC = gcc
-ARGS = -Wall -Wextra -g
-SRC = main.c db.c
+ARGS = -Wall -Wextra -g -I./include
+SRC = main.c db.c types.c
 
 # Include the pkg-config command to get the flags for the MongoDB C driver
 MONGOC_CFLAGS = $(shell pkg-config --cflags libmongoc-1.0)
