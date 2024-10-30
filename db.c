@@ -76,6 +76,38 @@ void db_create_note(Note *note){
     bson_destroy(&reply);
 }
 
-void db_get_note(){}
-void db_update_note(){}
-void db_delete_note(){}
+char* db_get_note_by_id_json(char* id){
+    Note *note;
+    uint32_t limit = 1; // Find one 
+    bson_t *query;
+    bson_t *field;
+    bson_oid_t oid;
+    mongoc_cursor_t *cursor; 
+    const bson_t *doc;
+    char *str;
+    bool fail = true;
+    
+    field = bson_new();
+    query = bson_new();
+
+    bson_oid_init_from_string(&oid, id);
+    BSON_APPEND_OID(query, "_id", &oid);
+
+    cursor = mongoc_collection_find(collection, 0, 0, 0, 0, query, field, NULL);
+    if(mongoc_cursor_next(cursor, &doc)){
+        str = bson_as_json (doc, NULL);
+        fail = false;
+    }
+
+    // Cleaning 
+    bson_destroy(query);
+
+    if(fail){
+        return NULL;
+    }
+    else{
+        return str;
+    }
+}
+void db_update_note(char* id, Note *new_note){}
+void db_delete_note(char* id){}
