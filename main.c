@@ -8,10 +8,14 @@
 #include <cmark.h>
 #include <dirent.h>
 #include "db.h"
+#include "http.h"
+#include <dotenv.h>
 
 #define PORT 4000
 #define QUEUE_SIZE 32
 #define NOTES_DIR = "./notes"
+#define INITIAL_REQUEST_BUFFER_SIZE 256 
+#define REQUEST_BUFFER_INCREMENT_AMOUNT 512
 
 // Function takes a body string and returns a raw HTTP 1.1 response buffer
 char* compile_response(const char* body) {
@@ -113,8 +117,40 @@ char *compose_strings(const char *str1, const char *str2) {
 }
 
 
+/// Dynamicly reads request by chunks and returns the allocated buffer 
+char* allocate_request_buffer(int stream){
+
+        // Alloc buffer for reading request
+
+        int buffer_size = INITIAL_REQUEST_BUFFER_SIZE;
+        char* request_buffer = malloc(sizeof(char) * buffer_size);
+        int bytes_read = 0; 
+        while(true){
+
+            bytes_read = recv(stream, request_buffer, buffer_size, 0);
+
+
+            // Check we read all the buffer
+            if(bytes_read == buffer_size){
+                // Increase the size of buffer 
+                buffer_size += REQUEST_BUFFER_INCREMENT_AMOUNT;
+                request_buffer = realloc(request_buffer, buffer_size);
+            }
+            else{
+                break;
+            }
+
+        }
+
+        return request_buffer;
+
+}
+
+
 
 int main(){
+    // Load dotenv
+    env_load(".", false);
     // Connect to db 
     db_connect();
     char* json = db_get_all_notes(0);
@@ -160,16 +196,9 @@ int main(){
             return 1;
         }
 
+        char* request_buffer = allocate_request_buffer(stream);
 
-        // Alloc buffer for reading request
-
-        int buffer_size = 1024;
-        char* request_buffer = malloc(sizeof(char) * buffer_size);
-        
-        int bytes_read = recv(stream, request_buffer, buffer_size, 0);
-        
-        printf("%d bytes read\nRequest: %s\n", bytes_read, request_buffer);
-        
+        Request *request = parse_request_buffer(request_buffer);
 
         // Render home    
 
@@ -178,7 +207,6 @@ int main(){
         int bytes_written = write(stream, response, strlen(response));
         printf("Response: %s\n", response);
         free(response);
-        free(json);
 
         if(bytes_written < 0){
             perror("ERR: write error\n");
