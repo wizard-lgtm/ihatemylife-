@@ -197,8 +197,9 @@ int main(){
         }
 
         char* request_buffer = allocate_request_buffer(stream);
-
+        printf("BRO PARSE PARSE\n");
         Request *request = parse_request_buffer(request_buffer);
+        
 
         // Render home    
 
@@ -206,8 +207,9 @@ int main(){
         char* response = compile_response(body);
         int bytes_written = write(stream, response, strlen(response));
         printf("Response: %s\n", response);
-        free(response);
 
+        free(request);
+        free(response);
         if(bytes_written < 0){
             perror("ERR: write error\n");
             return 1;
