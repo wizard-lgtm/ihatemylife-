@@ -118,34 +118,71 @@ char *compose_strings(const char *str1, const char *str2) {
 
 
 /// Dynamicly reads request by chunks and returns the allocated buffer 
-char* allocate_request_buffer(int stream){
-
-        // Alloc buffer for reading request
-
-        int buffer_size = INITIAL_REQUEST_BUFFER_SIZE;
-        char* request_buffer = malloc(sizeof(char) * buffer_size);
-        int bytes_read = 0; 
-        while(true){
-
-            bytes_read = recv(stream, request_buffer, buffer_size, 0);
-
-
-            // Check we read all the buffer
-            if(bytes_read == buffer_size){
-                // Increase the size of buffer 
-                buffer_size += REQUEST_BUFFER_INCREMENT_AMOUNT;
-                request_buffer = realloc(request_buffer, buffer_size);
-            }
-            else{
+char* allocate_request_buffer(int stream) {
+    // Initial buffer setup
+    int buffer_size = INITIAL_REQUEST_BUFFER_SIZE;
+    int total_bytes = 0;
+    char* request_buffer = malloc(sizeof(char) * buffer_size);
+    if (!request_buffer) {
+        return NULL;
+    }
+    
+    // Read loop
+    while (1) {
+        // Calculate remaining space in buffer
+        int remaining_space = buffer_size - total_bytes;
+        
+        // Read into current position in buffer
+        int bytes_read = recv(stream, request_buffer + total_bytes, remaining_space, 0);
+        
+        // Handle errors and connection closure
+        if (bytes_read <= 0) {
+            if (bytes_read == 0) { // Connection closed
                 break;
+            } else { // Error occurred
+                free(request_buffer);
+                return NULL;
             }
-
         }
+        
+        total_bytes += bytes_read;
+        
+        // Check if we need more space
+        if (total_bytes >= buffer_size) {
+            buffer_size += REQUEST_BUFFER_INCREMENT_AMOUNT;
+            char* new_buffer = realloc(request_buffer, buffer_size);
+            if (!new_buffer) {
+                free(request_buffer);
+                return NULL;
+            }
+            request_buffer = new_buffer;
+        }
+        
+        // Check for end of HTTP headers
+        if (total_bytes >= 4 && 
+            memcmp(request_buffer + total_bytes - 4, "\r\n\r\n", 4) == 0) {
+            break;
+        }
+    }
+    
+    // Ensure null termination
+    if (total_bytes < buffer_size) {
+        request_buffer[total_bytes] = '\0';
+    } else {
+        char* new_buffer = realloc(request_buffer, buffer_size + 1);
+        if (new_buffer) {
+            request_buffer = new_buffer;
+            request_buffer[total_bytes] = '\0';
+        }
+    }
+    
+    return request_buffer;
+}
+//  I USED CHATGPT HERE BC I'M A LOSER
 
-        return request_buffer;
+void router(Request* request){
 
 }
-
 
 
 int main(){
@@ -197,18 +234,39 @@ int main(){
         }
 
         char* request_buffer = allocate_request_buffer(stream);
-        printf("BRO PARSE PARSE\n");
+        
         Request *request = parse_request_buffer(request_buffer);
         
+        
+    
 
         // Render home    
-
+        if(strcmp(request->status->path, "/") == 0){
+            printf("Home\n");
+        }
+        else{
+            printf("Not home\n");
+        }
         char* body = render_home();
         char* response = compile_response(body);
-        int bytes_written = write(stream, response, strlen(response));
-        printf("Response: %s\n", response);
+        char* headers_str = "Content-Type: text/html;\n";
+        char* headers = (char*) malloc(strlen(headers_str)+1);
+        strcpy(headers, headers_str);
+        char* body_new = "<h1> I hate my life from repsonse object </h1>";
+        Response* response_new = (Response*) malloc(sizeof(Response));
+        response_new->status_code= 200;
+        response_new->status_message= "OK";
+        response_new->headers = headers;
+        response_new->body = body_new;
+        
 
-        free(request);
+        char* response_str = response_to_str(response_new);
+        int bytes_written = write(stream, response_str, strlen(response_str));
+
+        printf("Repsonse str:\n%s\n", response_str);
+        free(response_str);
+
+        free_request(request);
         free(response);
         if(bytes_written < 0){
             perror("ERR: write error\n");
